@@ -1,7 +1,0 @@
-{
-  "recommendations": [
-    "vknabel.vscode-swift-development-environment",
-    "vadimcn.vscode-lldb",
-    "dtsvet.vscode-wasm"
-  ]
-}

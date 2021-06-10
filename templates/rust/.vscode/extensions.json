@@ -1,6 +1,3 @@
 {
-    "recommendations": [
-        "rust-lang.rust",
-        "vadimcn.vscode-lldb"
-    ]
+  "recommendations": ["rust-lang.rust", "vadimcn.vscode-lldb"]
 }
