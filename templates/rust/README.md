@@ -1,18 +1,23 @@
 # <%= module %>
 
-A WASM hello-world with a publish action
+## Building
 
-You will need:
+The Makefile includes the recipes necessary to generate code from the WIDL schemas in ./schemas/.
 
-- Rust: https://www.rust-lang.org/tools/install
-- The `wasm32-wasi` target: `rustup target add wasm32-wasi`
+To codegen, build, and sign your WASM module, run `make`
 
-To build:
+```shell
+$ make
+```
 
-- VS Code: `Run Task > Rust: Build WASM`
-- Command line: `cargo build-wasm`
+## Codegen and clean
 
-To run:
+```shell
+$ make clean && make codegen
+```
 
-- VS Code: go to Run/Debug pane, select `Debug WASM` and run
-- Command line: `wasmtime ./target/wasm32-wasi/debug/<%= module %>.wasm`
+## Testing
+
+```shell
+$ make test
+```

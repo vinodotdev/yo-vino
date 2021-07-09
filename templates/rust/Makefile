@@ -1,45 +1,83 @@
-.PHONY: all deps codegen build clean doc test sign claims
+.PHONY: all codegen build clean doc test
 
-CRATE_FS_NAME:=$(shell cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name' | tr '-' '_')
-CAPABILITIES:=$(shell cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].metadata.wasmcloud.capabilities | map("--cap=\(.)") | join(" ")' 2> /dev/null)
-CRATE_NAME:=$(shell cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name')
-CRATE_VERSION:=$(shell cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version ')
-BUILD_DIR:=build
-SIGNED_ARTIFACT:=$(BUILD_DIR)/$(CRATE_FS_NAME)_s.wasm
-BUILD_ARTIFACT:=$(BUILD_DIR)/$(CRATE_FS_NAME).wasm
+# Enforce bash as the shell for consistency
+SHELL := bash
+# Use bash strict mode
+.SHELLFLAGS := -eu -o pipefail -c
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
 
-INPUTS:=$(shell widl2json schema.widl | jq -r '.definitions[] | select(.name.value == "Inputs") | .fields | map("--input-port=\(.name.value)")| join(" ")')
-OUTPUTS:=$(shell widl2json schema.widl | jq -r '.definitions[] | select(.name.value == "Outputs") | .fields | map("--output-port=\(.name.value)")| join(" ")')
+SCHEMA_DIR := ./schemas
+COMPONENTS_DIR := ./src/components
+GENERATED_MODULE := ./src/generated.rs
 
-all: deps codegen build sign claims
+# Get list of WIDL files in SCHEMA_DIR
+SCHEMAS=$(wildcard ${SCHEMA_DIR}/*.widl)
 
-deps:
-	mkdir -p build
+# Translate a list of WIDL files to COMPONENTS_DIR/file.rs (transposing hyphens to underscores)
+GENERATED_COMPONENTS := $(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(SCHEMAS))))
 
-codegen:
-	vino-codegen rust schema.widl -t sdk-integration -o src/generated.rs -f
-	vino-codegen rust schema.widl -t guest-boilerplate -o src/lib.rs
+# Name of the package from Cargo.toml
+CRATE_NAME:=$(shell tomlq -f Cargo.toml package.name)
+# Name with hyphens substituted with underscores
+CRATE_FS_NAME:=$(subst -,_,$(CRATE_NAME))
+# Version from Cargo.toml
+CRATE_VERSION:=$(shell tomlq -f Cargo.toml package.version)
+# Get the root directory (respecting cargo workspaces)
+WORKSPACE_ROOT:=$(shell cargo metadata --no-deps --format-version 1 -q | jq -r '.workspace_root')
+# Directory to copy artifacts to
+ARTIFACT_DIR:=build
+# Path to copy artifact to
+BUILD_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME).wasm
+# Path to copy artifact to
+SIGNED_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME)_s.wasm
 
-build:
+
+# Files to clean up on make clean
+CLEAN_FILES := $(GENERATED_MODULE) $(BUILD_ARTIFACT) $(SIGNED_ARTIFACT) ./src/components/mod.rs
+
+$(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) ./interface.json
+	vinoc sign $(BUILD_ARTIFACT) interface.json --ver=$(CRATE_VERSION) --rev=0
+	vinoc inspect $(SIGNED_ARTIFACT)
+
+# Defines rules like the following for each schema found :
+# src/components/my_components.rs: schemas/my-component.widl /src/components
+define WIDL_CODEGEN
+$(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1 ${COMPONENTS_DIR}
+	vino-codegen rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
+	rustfmt $$@
+endef
+
+# Call the above rule generator for each schema file
+$(foreach schema,$(SCHEMAS),$(eval $(call WIDL_CODEGEN,$(schema))))
+
+$(COMPONENTS_DIR):
+	mkdir $@
+
+$(ARTIFACT_DIR):
+	mkdir -p $(ARTIFACT_DIR)
+
+$(GENERATED_MODULE): $(SCHEMAS)
+	vino-codegen rust wapc-integration $(SCHEMA_DIR) -o $@
+	rustfmt $@
+
+./interface.json: $(SCHEMAS)
+	vino-codegen json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o interface.json -f
+
+./src/components/mod.rs: $(SCHEMAS)
+	vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
+	rustfmt $@
+
+$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs ./src/components/mod.rs $(ARTIFACT_DIR) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
 	cargo build --target wasm32-unknown-unknown --release
-	cp target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
+	cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
 
-sign:
-	wash claims sign $(BUILD_ARTIFACT) $(CAPABILITIES) \
-  	--name=$(CRATE_NAME) \
-  	--ver=$(CRATE_VERSION) \
-  	--rev=0 \
-  	$(INPUTS) \
-  	$(OUTPUTS)
+all: $(SIGNED_ARTIFACT)
 
-claims:
-	wash claims inspect $(SIGNED_ARTIFACT)
-
-# Rust builds accrue disk space over time (specifically the target directory),
-# so running `make clean` should be done periodically.
 clean:
-	cargo clean
-	rm -Rf build
+	rm -f $(CLEAN_FILES)
+
+codegen: ./interface.json  $(GENERATED_COMPONENTS) $(GENERATED_MODULE) ./src/lib.rs
 
 doc:
 

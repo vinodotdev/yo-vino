@@ -7,7 +7,12 @@ describe('rust project generator', function () {
   it('should populate basic project', async () => {
     await helpers
       .run(YoVino)
-      .withOptions({ module: 'my-module', author: 'john doe', description: 'my desc', language: 'rust' })
+      .withOptions({
+        module: 'my-module',
+        author: 'john doe',
+        description: 'my desc',
+        language: 'rust',
+      })
       .withLocalConfig({ lang: 'en' });
     assert.file([
       '.gitignore',
@@ -21,7 +26,7 @@ describe('rust project generator', function () {
       'README.md',
       'Makefile',
       'Cargo.toml',
-      'schema.widl',
+      'schemas/my-component.widl',
       'src/lib.rs',
     ]);
   });

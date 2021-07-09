@@ -34,9 +34,9 @@ export const rust: Language = {
       '.vscode/launch.json',
       '.vscode/settings.json',
       '.vscode/tasks.json',
+      'schemas/my-component.widl',
       'src/lib.rs',
       'Makefile',
-      'schema.widl',
     ];
   },
 
