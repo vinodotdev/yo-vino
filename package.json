@@ -8,11 +8,6 @@
     "name": "jsoverson",
     "email": "jsoverson@gmail.com"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "templates"
-  ],
   "main": "dist/index.js",
   "keywords": [
     "wasm",

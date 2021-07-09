@@ -1,0 +1,5 @@
+.github
+etc
+node_modules
+test
+tsconfig.json
