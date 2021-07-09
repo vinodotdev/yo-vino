@@ -1,6 +1,6 @@
 {
   "name": "@vinodotdev/generator-vino",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "preview": true,
   "description": "Create Vino WASM components and providers",
   "homepage": "https://github.com/vinodotdev/yo-vino",
