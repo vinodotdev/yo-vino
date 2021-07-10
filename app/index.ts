@@ -77,7 +77,9 @@ export default class extends Generator {
     mark('promptingStart');
     const username = this.user.git.name() || process.env.USER || process.env.USERNAME;
     const appname = this.appname.replace(/ /g, '-');
-    this.options.language = caseInsensitiveFilter(LANGUAGE, this.options.language);
+
+    if (this.options.language)
+      this.options.language = caseInsensitiveFilter(LANGUAGE, this.options.language);
 
     const prompts: Generator.Questions<Answers> = [
       {
@@ -133,7 +135,9 @@ export default class extends Generator {
         .then(stat => !!stat)
         .catch(e => e.code !== 'ENOENT');
       if (exists) {
-        throw new Error(`${dir} exists, please remove the directory if you want me to create it automatically`);
+        throw new Error(
+          `${dir} exists, please remove the directory if you want me to create it automatically`,
+        );
       }
       await fs.mkdir(dir);
       this.destinationRoot(dir);
@@ -165,9 +169,17 @@ export default class extends Generator {
         trimEnd: false,
       });
 
-    logParagraph(appendToReadMe, '## Dev releases', registry.localInstructions(FMT_MARKDOWN, this.answers));
+    logParagraph(
+      appendToReadMe,
+      '## Dev releases',
+      registry.localInstructions(FMT_MARKDOWN, this.answers),
+    );
 
-    logParagraph(appendToReadMe, '## CI releases', registry.workflowInstructions(FMT_MARKDOWN, this.answers));
+    logParagraph(
+      appendToReadMe,
+      '## CI releases',
+      registry.workflowInstructions(FMT_MARKDOWN, this.answers),
+    );
     appendToReadMe('');
 
     for (const filepath of registry.languageFiles()) {
@@ -226,8 +238,16 @@ export default class extends Generator {
       }
     }
     logParagraph(this.log, chalk.yellow('Building'), language.instructions(FMT_CHALK));
-    logParagraph(this.log, chalk.yellow('Dev releases'), registry.localInstructions(FMT_CHALK, this.answers));
-    logParagraph(this.log, chalk.yellow('CI releases'), registry.workflowInstructions(FMT_CHALK, this.answers));
+    logParagraph(
+      this.log,
+      chalk.yellow('Dev releases'),
+      registry.localInstructions(FMT_CHALK, this.answers),
+    );
+    logParagraph(
+      this.log,
+      chalk.yellow('CI releases'),
+      registry.workflowInstructions(FMT_CHALK, this.answers),
+    );
     this.log('');
     mark('endEnd');
     if (process.env.DEBUG) finishTiming();

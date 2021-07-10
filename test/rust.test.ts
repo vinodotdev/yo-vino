@@ -1,7 +1,7 @@
 import helpers from 'yeoman-test';
 import assert from 'yeoman-assert';
 
-import YoVino from '../src';
+import YoVino from '../app';
 
 describe('rust project generator', function () {
   it('should populate basic project', async () => {

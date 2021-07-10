@@ -1,5 +1,5 @@
 {
-  "name": "@vinodotdev/generator-vino",
+  "name": "generator-vino",
   "version": "0.0.2",
   "preview": true,
   "description": "Create Vino WASM components and providers",
@@ -8,7 +8,7 @@
     "name": "jsoverson",
     "email": "jsoverson@gmail.com"
   },
-  "main": "dist/index.js",
+  "main": "dist/app/index.js",
   "keywords": [
     "wasm",
     "yeoman-generator",
@@ -20,7 +20,7 @@
     "build": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "eslint ./src/**/*.ts ./test/**/*.ts",
+    "pretest": "eslint ./app/**/*.ts ./test/**/*.ts",
     "test": "mocha"
   },
   "devDependencies": {

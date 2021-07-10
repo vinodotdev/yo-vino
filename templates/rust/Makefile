@@ -57,7 +57,7 @@ $(COMPONENTS_DIR):
 $(ARTIFACT_DIR):
 	mkdir -p $(ARTIFACT_DIR)
 
-$(GENERATED_MODULE): $(SCHEMAS)
+$(GENERATED_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
 	vino-codegen rust wapc-integration $(SCHEMA_DIR) -o $@
 	rustfmt $@
 
