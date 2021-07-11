@@ -9,6 +9,7 @@ MAKEFLAGS += --no-builtin-rules
 
 SCHEMA_DIR := ./schemas
 COMPONENTS_DIR := ./src/components
+COMPONENTS_MODULE := $(COMPONENTS_DIR)/mod.rs
 GENERATED_MODULE := ./src/generated.rs
 
 # Get list of WIDL files in SCHEMA_DIR
@@ -64,11 +65,11 @@ $(GENERATED_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
 ./interface.json: $(SCHEMAS)
 	vino-codegen json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o interface.json -f
 
-./src/components/mod.rs: $(SCHEMAS)
+$(COMPONENTS_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
 	vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
 	rustfmt $@
 
-$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs ./src/components/mod.rs $(ARTIFACT_DIR) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
+$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(ARTIFACT_DIR) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
 	cargo build --target wasm32-unknown-unknown --release
 	cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
 
