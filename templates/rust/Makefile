@@ -59,7 +59,7 @@ $(ARTIFACT_DIR):
 	mkdir -p $(ARTIFACT_DIR)
 
 $(GENERATED_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
-	vino-codegen rust wapc-integration $(SCHEMA_DIR) -o $@
+	vino-codegen rust wapc-integration $(SCHEMA_DIR) -f -o $@
 	rustfmt $@
 
 ./interface.json: $(SCHEMAS)
@@ -69,7 +69,7 @@ $(COMPONENTS_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
 	vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
 	rustfmt $@
 
-$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(ARTIFACT_DIR) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
+$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(ARTIFACT_DIR) $(GENERATED_COMPONENTS) $(GENERATED_MODULE)
 	cargo build --target wasm32-unknown-unknown --release
 	cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
 
