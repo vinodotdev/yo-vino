@@ -3,19 +3,12 @@ import { default as chalk } from 'chalk';
 import path from 'path';
 import { promises as fs } from 'fs';
 
-import { Registry } from './providers/registry';
-import { acr } from './providers/acr';
-import { noRegistry } from './providers/none';
-
 import { Language } from './languages/language';
 import { rust } from './languages/rust';
 import { Errorable, failed } from './utils/errorable';
 import { FMT_CHALK, FMT_MARKDOWN } from './formatter';
 import findroot from 'find-root';
 import { mark, finishTiming } from './utils/timer';
-
-const REGISTRY_CHOICE_ACR = 'Azure Container Registry';
-const REGISTRY_CHOICE_NONE = "I don't want to publish the module";
 
 enum LANGUAGE {
   Rust = 'Rust',
@@ -151,7 +144,6 @@ export default class extends Generator {
   writing(): void {
     mark('writingStart');
     const language = languageProvider(this.answers.language);
-    const registry = provider(this.answers.registryProvider);
 
     const templateFolder = language.templateFolder();
     const templateValues = language.augment(this.answers);
@@ -169,26 +161,7 @@ export default class extends Generator {
         trimEnd: false,
       });
 
-    logParagraph(
-      appendToReadMe,
-      '## Dev releases',
-      registry.localInstructions(FMT_MARKDOWN, this.answers),
-    );
-
-    logParagraph(
-      appendToReadMe,
-      '## CI releases',
-      registry.workflowInstructions(FMT_MARKDOWN, this.answers),
-    );
     appendToReadMe('');
-
-    for (const filepath of registry.languageFiles()) {
-      this.fs.copyTpl(
-        this.templatePath(path.join(templateFolder, filepath)),
-        removeSuppressionExtension(this.destinationPath(filepath)),
-        templateValues,
-      );
-    }
 
     const tasksFilePath = this.destinationPath('.vscode/tasks.json');
     if (this.fs.exists(tasksFilePath)) {
@@ -204,13 +177,6 @@ export default class extends Generator {
       templateValues,
     );
 
-    const releaseTemplate = registry.releaseTemplate();
-    this.fs.copyTpl(
-      this.templatePath(path.join(templateFolder, `.github/workflows/${releaseTemplate}`)),
-      this.destinationPath('.github/workflows/release.yml'),
-      templateValues,
-    );
-
     // It would be good to install the language toolchain (and other local tools) here,
     // and also to set up appropriate VS Code settings files etc.  But the install is
     // something we'd like to be able to run on other boxes (when the generated project
@@ -222,7 +188,6 @@ export default class extends Generator {
   async end(): Promise<void> {
     mark('endStart');
     const language = languageProvider(this.answers.language);
-    const registry = provider(this.answers.registryProvider);
 
     this.log('');
     this.log(chalk.green('Created project and GitHub workflows'));
@@ -238,16 +203,7 @@ export default class extends Generator {
       }
     }
     logParagraph(this.log, chalk.yellow('Building'), language.instructions(FMT_CHALK));
-    logParagraph(
-      this.log,
-      chalk.yellow('Dev releases'),
-      registry.localInstructions(FMT_CHALK, this.answers),
-    );
-    logParagraph(
-      this.log,
-      chalk.yellow('CI releases'),
-      registry.workflowInstructions(FMT_CHALK, this.answers),
-    );
+
     this.log('');
     mark('endEnd');
     if (process.env.DEBUG) finishTiming();
@@ -263,17 +219,6 @@ function logParagraph(log: (line: string) => void, title: string, lines: Readonl
   log('');
   for (const line of lines) {
     log(line);
-  }
-}
-
-function provider(registryProvider: string): Registry {
-  switch (registryProvider) {
-    case REGISTRY_CHOICE_ACR:
-      return acr;
-    case REGISTRY_CHOICE_NONE:
-      return noRegistry;
-    default:
-      return noRegistry;
   }
 }
 
