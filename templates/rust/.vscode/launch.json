@@ -15,7 +15,11 @@
       "type": "lldb",
       "request": "launch",
       "program": "wasmtime",
-      "args": ["run", "${workspaceFolder}/target/wasm32-wasi/debug/${workspaceRootFolderName}.wasm", "-g"],
+      "args": [
+        "run",
+        "${workspaceFolder}/target/wasm32-unknown-unknown/debug/${workspaceRootFolderName}.wasm",
+        "-g"
+      ],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": ["rust"],
       "preLaunchTask": "Cargo: Build WASM"

@@ -1,4 +1,6 @@
-.PHONY: all codegen build clean doc test
+.DEFAULT_GOAL:=all
+
+.PHONY: all codegen build clean doc test help list
 
 # Enforce bash as the shell for consistency
 SHELL := bash
@@ -9,8 +11,8 @@ MAKEFLAGS += --no-builtin-rules
 
 SCHEMA_DIR := ./schemas
 COMPONENTS_DIR := ./src/components
-COMPONENTS_MODULE := $(COMPONENTS_DIR)/mod.rs
 GENERATED_MODULE := ./src/generated.rs
+COMPONENTS_MODULE := $(COMPONENTS_DIR)/mod.rs
 
 # Get list of WIDL files in SCHEMA_DIR
 SCHEMAS=$(wildcard ${SCHEMA_DIR}/*.widl)
@@ -24,63 +26,79 @@ CRATE_NAME:=$(shell tomlq -f Cargo.toml package.name)
 CRATE_FS_NAME:=$(subst -,_,$(CRATE_NAME))
 # Version from Cargo.toml
 CRATE_VERSION:=$(shell tomlq -f Cargo.toml package.version)
-# Get the root directory (respecting cargo workspaces)
-WORKSPACE_ROOT:=$(shell cargo metadata --no-deps --format-version 1 -q | jq -r '.workspace_root')
-# Directory to copy artifacts to
+# Get the root directory
+WORKSPACE_ROOT:=.
+# Directory to store the build artifacts
 ARTIFACT_DIR:=build
-# Path to copy artifact to
+# Path to copy the build artifact to
 BUILD_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME).wasm
-# Path to copy artifact to
+# Path for the signed artifact
 SIGNED_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME)_s.wasm
 
-
-# Files to clean up on make clean
+# Files to clean on make clean
 CLEAN_FILES := $(GENERATED_MODULE) $(BUILD_ARTIFACT) $(SIGNED_ARTIFACT) ./src/components/mod.rs
 
 $(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) ./interface.json
-	vinoc sign $(BUILD_ARTIFACT) interface.json --ver=$(CRATE_VERSION) --rev=0
-	vinoc inspect $(SIGNED_ARTIFACT)
+	@echo Signing $(BUILD_ARTIFACT)
+	@vinoc sign $(BUILD_ARTIFACT) interface.json --ver=$(CRATE_VERSION) --rev=0
+	@echo Created $(SIGNED_ARTIFACT)
 
 # Defines rules like the following for each schema found :
-# src/components/my_components.rs: schemas/my-component.widl /src/components
+# src/components/my_components.rs: schemas/my-component.widl
 define WIDL_CODEGEN
-$(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1 ${COMPONENTS_DIR}
-	vino-codegen rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
-	rustfmt $$@
+$(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1
+	@mkdir -p $$(dir $$@)
+	@echo Generating $@
+	@vino-codegen rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
+	@rustfmt $$@
 endef
 
 # Call the above rule generator for each schema file
 $(foreach schema,$(SCHEMAS),$(eval $(call WIDL_CODEGEN,$(schema))))
 
+$(GENERATED_MODULE): $(SCHEMAS)
+	@echo Generating $@
+	@vino-codegen rust wapc-integration $(SCHEMA_DIR) -f -o $@
+	@rustfmt $@
+
 $(COMPONENTS_DIR):
-	mkdir $@
-
-$(ARTIFACT_DIR):
-	mkdir -p $(ARTIFACT_DIR)
-
-$(GENERATED_MODULE): $(GENERATED_COMPONENTS) $(COMPONENTS_DIR)
-	vino-codegen rust wapc-integration $(SCHEMA_DIR) -f -o $@
-	rustfmt $@
-
-./interface.json: $(SCHEMAS)
-	vino-codegen json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o interface.json -f
+	@mkdir -p $@
 
 $(COMPONENTS_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
-	vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
-	rustfmt $@
+	@mkdir -p $(dir $@)
+	@echo Building $(COMPONENTS_MODULE)
+	@vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
 
-$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(ARTIFACT_DIR) $(GENERATED_COMPONENTS) $(GENERATED_MODULE)
+$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
+	@mkdir -p $(dir $@)
+	@echo Building artifact
 	cargo build --target wasm32-unknown-unknown --release
-	cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
+	@echo Copying binary to $(BUILD_ARTIFACT)
+	@cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
 
-all: $(SIGNED_ARTIFACT)
+##@ Targets
 
-clean:
-	rm -f $(CLEAN_FILES)
+./interface.json: $(SCHEMAS) ## Create an interface.json from the project's schemas
+	@echo Building $@ from schemas in $(SCHEMA_DIR)
+	@vino-codegen json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o interface.json -f
 
-codegen: ./interface.json  $(GENERATED_COMPONENTS) $(GENERATED_MODULE) ./src/lib.rs
+all: $(SIGNED_ARTIFACT) ## Make and sign the wasm binary
 
-doc:
+clean: ## Clean the generated files
+	@rm -f $(CLEAN_FILES)
 
-test: build
+codegen: ./interface.json  $(GENERATED_COMPONENTS) $(COMPONENTS_MODULE) $(GENERATED_MODULE) ./src/lib.rs ## Generate code from schemas
+
+doc: ## Generate documentation
+	@echo Unimplemented
+
+test: build ## Run tests
 	cargo test
+
+##@ Helpers
+
+list: ## Print schemas
+	@echo $(SCHEMAS)
+
+help:  ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_\-.*]+:.*?##/ { printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

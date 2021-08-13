@@ -12,10 +12,11 @@ export const rust: Language = {
       "You'll need the following to build and run this project locally:",
       '* Rust: https://www.rust-lang.org/tools/install',
       `* WASM target: ${fmt.cmd('rustup target add wasm32-unknown-unknown')}.`,
-      `* Vino codegen: ${fmt.cmd('npm install -g vino-codegen')}.`,
-      `* tomlq ${fmt.cmd('cargo install tomlq')}`,
+      `* Vino codegen: ${fmt.cmd('npm install -g @vinodotdev/codegen')}.`,
+      `* tomlq ${fmt.cmd('cargo install tomlq')}.`,
       '',
       `Build using ${fmt.instr('make')}, test with ${fmt.instr('make test')}.`,
+      `Run ${fmt.instr('make help')} for other useful commands.`,
     ];
   },
 

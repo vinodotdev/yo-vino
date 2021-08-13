@@ -12,7 +12,7 @@
       "label": "Cargo: Build WASM",
       "type": "shell",
       "command": "cargo",
-      "args": ["build", "--target", "wasm32-wasi"],
+      "args": ["build", "--target", "wasm32-unknown-unknown"],
       "problemMatcher": ["$rustc"]
     }
   ]
