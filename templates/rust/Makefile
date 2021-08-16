@@ -2,10 +2,20 @@
 
 .PHONY: all codegen build clean doc test help list
 
+ifeq ($(OS),Windows_NT)
+# Use powershell on Windows
+SHELL := powershell.exe
+# mkdir -p on windows throws an error if the directory exists, -Force suppresses it.
+MKDIR := mkdir -Force -p
+.SHELLFLAGS := -NoProfile -Command
+else
 # Enforce bash as the shell for consistency
 SHELL := bash
+MKDIR := mkdir -p
 # Use bash strict mode
 .SHELLFLAGS := -eu -o pipefail -c
+endif
+
 MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
@@ -47,7 +57,7 @@ $(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) ./interface.json
 # src/components/my_components.rs: schemas/my-component.widl
 define WIDL_CODEGEN
 $(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1
-	@mkdir -p $$(dir $$@)
+	@$$(shell $$(MKDIR) $$(dir $$@))
 	@echo Generating $@
 	@vino-codegen rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
 	@rustfmt $$@
@@ -62,15 +72,18 @@ $(GENERATED_MODULE): $(SCHEMAS)
 	@rustfmt $@
 
 $(COMPONENTS_DIR):
-	@mkdir -p $@
+	@echo Making directory \"$@\"
+	$(shell $(MKDIR) $@)
+
+$(ARTIFACT_DIR):
+	@echo Making directory \"$@\"
+	$(shell $(MKDIR) $@)
 
 $(COMPONENTS_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
-	@mkdir -p $(dir $@)
 	@echo Building $(COMPONENTS_MODULE)
 	@vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
 
-$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(COMPONENTS_MODULE) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
-	@mkdir -p $(dir $@)
+$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(ARTIFACT_DIR) $(COMPONENTS_MODULE) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
 	@echo Building artifact
 	cargo build --target wasm32-unknown-unknown --release
 	@echo Copying binary to $(BUILD_ARTIFACT)
