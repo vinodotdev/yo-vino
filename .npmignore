@@ -1,5 +1,5 @@
-.github
-etc
-node_modules
-test
-tsconfig.json
+/.github
+/etc
+/node_modules
+/test
+/tsconfig.json
