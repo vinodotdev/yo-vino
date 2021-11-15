@@ -30,9 +30,6 @@ GENERATED_MODULE := ./src/components.rs
 # Get list of WIDL files in SCHEMA_DIR
 SCHEMAS=$(wildcard ${SCHEMA_DIR}/*.widl)
 
-# Translate a list of WIDL files to COMPONENTS_DIR/file.rs (transposing hyphens to underscores)
-GENERATED_COMPONENTS := $(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(SCHEMAS))))
-
 # Name of the package from Cargo.toml
 CRATE_NAME:=$(shell tomlq -f Cargo.toml package.name)
 # Name with hyphens substituted with underscores
@@ -65,22 +62,9 @@ $(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) $(INTERFACE)
 	@$(VINOC) sign $(BUILD_ARTIFACT) $(INTERFACE) --ver=$(CRATE_VERSION) --rev=0
 	@echo Created $(SIGNED_ARTIFACT)
 
-# Defines rules like the following for each schema found :
-# src/components/my_components.rs: schemas/my-component.widl
-define WIDL_CODEGEN
-$(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1
-	@$$(shell $$(MKDIR) $$(dir $$@))
-	@echo Generating $$@
-	@$(CODEGEN) rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
-	@rustfmt $$@
-endef
-
-# Call the above rule generator for each schema file
-$(foreach schema,$(SCHEMAS),$(eval $(call WIDL_CODEGEN,$(schema))))
-
-$(GENERATED_MODULE): $(SCHEMAS)
+$(GENERATED_MODULE): $(INTERFACE)
 	@echo Generating $@
-	@$(CODEGEN) rust wapc-integration $(SCHEMA_DIR) -f -o $@
+	@$(CODEGEN) rust wapc-integration $(INTERFACE) -f -o $@
 	@rustfmt $@
 
 $(COMPONENTS_DIR):
@@ -91,7 +75,11 @@ $(ARTIFACT_DIR):
 	@echo Making directory \"$@\"
 	$(shell $(MKDIR) $@)
 
-$(BUILD_ARTIFACT): $(ARTIFACT_DIR) $(GENERATED_COMPONENTS) $(GENERATED_MODULE) $(RUST_SOURCES)
+components: $(INTERFACE) $(COMPONENTS_DIR)
+	@echo Generating component stubs
+	@$(CODEGEN) rust wapc-components $(INTERFACE) -o $(COMPONENTS_DIR)
+
+$(BUILD_ARTIFACT): $(ARTIFACT_DIR) components $(GENERATED_MODULE) $(RUST_SOURCES)
 	@echo Building artifact
 	cargo build --target $(TARGET) --release
 	@echo Copying binary to $(BUILD_ARTIFACT)
@@ -111,7 +99,7 @@ clean: ## Clean the generated files
 	@rm -f $(CLEAN_FILES)
 
 .PHONY: codegen
-codegen: $(INTERFACE)  $(GENERATED_COMPONENTS) $(GENERATED_MODULE) ./src/lib.rs ## Generate code from schemas
+codegen: $(INTERFACE) components $(GENERATED_MODULE) ./src/lib.rs ## Generate code from schemas
 
 .PHONY: doc
 doc: ## Generate documentation
