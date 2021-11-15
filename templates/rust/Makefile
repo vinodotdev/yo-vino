@@ -1,8 +1,12 @@
 .DEFAULT_GOAL:=all
 
-.PHONY: all codegen build clean doc test help list
+ifdef OS
+_OS := $(OS)
+else
+_OS := ""
+endif
 
-ifeq ($(OS),Windows_NT)
+ifeq ($(_OS),Windows_NT)
 # Use powershell on Windows
 SHELL := powershell.exe
 # mkdir -p on windows throws an error if the directory exists, -Force suppresses it.
@@ -21,8 +25,7 @@ MAKEFLAGS += --no-builtin-rules
 
 SCHEMA_DIR := ./schemas
 COMPONENTS_DIR := ./src/components
-GENERATED_MODULE := ./src/generated.rs
-COMPONENTS_MODULE := $(COMPONENTS_DIR)/mod.rs
+GENERATED_MODULE := ./src/components.rs
 
 # Get list of WIDL files in SCHEMA_DIR
 SCHEMAS=$(wildcard ${SCHEMA_DIR}/*.widl)
@@ -44,13 +47,22 @@ ARTIFACT_DIR:=build
 BUILD_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME).wasm
 # Path for the signed artifact
 SIGNED_ARTIFACT:=$(ARTIFACT_DIR)/$(CRATE_FS_NAME)_s.wasm
+# Path to the interface JSON
+INTERFACE:=./interface.json
+# All *.rs files in src/
+RUST_SOURCES:=$(wildcard src/*.rs) $(wildcard src/*/*.rs)
+
+TARGET=wasm32-unknown-unknown
+
+VINOC=vinoc
+CODEGEN:=vino-codegen
 
 # Files to clean on make clean
-CLEAN_FILES := $(GENERATED_MODULE) $(BUILD_ARTIFACT) $(SIGNED_ARTIFACT) ./src/components/mod.rs
+CLEAN_FILES := $(GENERATED_MODULE) $(BUILD_ARTIFACT) $(SIGNED_ARTIFACT) ./src/components/mod.rs $(INTERFACE)
 
-$(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) ./interface.json
+$(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) $(INTERFACE)
 	@echo Signing $(BUILD_ARTIFACT)
-	@vinoc sign $(BUILD_ARTIFACT) interface.json --ver=$(CRATE_VERSION) --rev=0
+	@$(VINOC) sign $(BUILD_ARTIFACT) $(INTERFACE) --ver=$(CRATE_VERSION) --rev=0
 	@echo Created $(SIGNED_ARTIFACT)
 
 # Defines rules like the following for each schema found :
@@ -58,8 +70,8 @@ $(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) ./interface.json
 define WIDL_CODEGEN
 $(patsubst %.widl,%.rs,$(patsubst ${SCHEMA_DIR}%,${COMPONENTS_DIR}%,$(subst -,_,$(1)))): $1
 	@$$(shell $$(MKDIR) $$(dir $$@))
-	@echo Generating $@
-	@vino-codegen rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
+	@echo Generating $$@
+	@$(CODEGEN) rust wapc-component $(notdir $(basename $(subst -,_,$(1)))) -o $$@
 	@rustfmt $$@
 endef
 
@@ -68,7 +80,7 @@ $(foreach schema,$(SCHEMAS),$(eval $(call WIDL_CODEGEN,$(schema))))
 
 $(GENERATED_MODULE): $(SCHEMAS)
 	@echo Generating $@
-	@vino-codegen rust wapc-integration $(SCHEMA_DIR) -f -o $@
+	@$(CODEGEN) rust wapc-integration $(SCHEMA_DIR) -f -o $@
 	@rustfmt $@
 
 $(COMPONENTS_DIR):
@@ -79,39 +91,42 @@ $(ARTIFACT_DIR):
 	@echo Making directory \"$@\"
 	$(shell $(MKDIR) $@)
 
-$(COMPONENTS_MODULE): $(SCHEMAS) $(COMPONENTS_DIR)
-	@echo Building $(COMPONENTS_MODULE)
-	@vino-codegen rust wapc-component-module $(SCHEMA_DIR) -o $@ -f
-
-$(BUILD_ARTIFACT): $(wildcard src/*.rs) ./src/lib.rs $(ARTIFACT_DIR) $(COMPONENTS_MODULE) $(GENERATED_MODULE) $(GENERATED_COMPONENTS)
+$(BUILD_ARTIFACT): $(ARTIFACT_DIR) $(GENERATED_COMPONENTS) $(GENERATED_MODULE) $(RUST_SOURCES)
 	@echo Building artifact
-	cargo build --target wasm32-unknown-unknown --release
+	cargo build --target $(TARGET) --release
 	@echo Copying binary to $(BUILD_ARTIFACT)
-	@cp $(WORKSPACE_ROOT)/target/wasm32-unknown-unknown/release/$(CRATE_FS_NAME).wasm build/
+	@cp $(WORKSPACE_ROOT)/target/$(TARGET)/release/$(CRATE_FS_NAME).wasm build/
 
 ##@ Targets
 
-./interface.json: $(SCHEMAS) ## Create an interface.json from the project's schemas
+$(INTERFACE): $(SCHEMAS) ## Create an interface.json from the project's schemas
 	@echo Building $@ from schemas in $(SCHEMA_DIR)
-	@vino-codegen json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o interface.json -f
+	@$(CODEGEN) json interface "$(CRATE_NAME)" $(SCHEMA_DIR) -o $@ -f
 
+.PHONY: all
 all: $(SIGNED_ARTIFACT) ## Make and sign the wasm binary
 
+.PHONY: clean
 clean: ## Clean the generated files
 	@rm -f $(CLEAN_FILES)
 
-codegen: ./interface.json  $(GENERATED_COMPONENTS) $(COMPONENTS_MODULE) $(GENERATED_MODULE) ./src/lib.rs ## Generate code from schemas
+.PHONY: codegen
+codegen: $(INTERFACE)  $(GENERATED_COMPONENTS) $(GENERATED_MODULE) ./src/lib.rs ## Generate code from schemas
 
+.PHONY: doc
 doc: ## Generate documentation
 	@echo Unimplemented
 
+.PHONY: test
 test: build ## Run tests
 	cargo test
 
 ##@ Helpers
 
+.PHONY: list
 list: ## Print schemas
 	@echo $(SCHEMAS)
 
+.PHONY: help
 help:  ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_\-.*]+:.*?##/ { printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
