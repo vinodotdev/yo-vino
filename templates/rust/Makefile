@@ -64,7 +64,7 @@ $(SIGNED_ARTIFACT): $(BUILD_ARTIFACT) $(INTERFACE)
 
 $(GENERATED_MODULE): $(INTERFACE)
 	@echo Generating $@
-	@$(CODEGEN) rust wapc-integration $(INTERFACE) -f -o $@
+	@$(CODEGEN) rust integration $(INTERFACE) --type wasm -f -o $@
 	@rustfmt $@
 
 $(COMPONENTS_DIR):
@@ -77,7 +77,7 @@ $(ARTIFACT_DIR):
 
 components: $(INTERFACE) $(COMPONENTS_DIR)
 	@echo Generating component stubs
-	@$(CODEGEN) rust wapc-components $(INTERFACE) -o $(COMPONENTS_DIR)
+	@$(CODEGEN) rust component $(INTERFACE) --type wasm -a -o $(COMPONENTS_DIR)
 
 $(BUILD_ARTIFACT): $(ARTIFACT_DIR) components $(GENERATED_MODULE) $(RUST_SOURCES)
 	@echo Building artifact
