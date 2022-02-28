@@ -16,7 +16,6 @@ describe('rust project generator', function () {
       .withLocalConfig({ lang: 'en' });
     assert.file([
       '.gitignore',
-      '.cargo/config.toml',
       '.github/workflows/build.yml',
       '.vscode/extensions.json',
       '.vscode/launch.json',
